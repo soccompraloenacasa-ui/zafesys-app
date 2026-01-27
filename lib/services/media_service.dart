@@ -25,12 +25,20 @@ class MediaService {
     throw Exception('Failed to get upload URL');
   }
 
-  /// Upload image bytes directly to R2
-  static Future<bool> uploadToR2(String uploadUrl, Uint8List imageBytes, {bool isPng = false}) async {
+  /// Upload bytes directly to R2
+  static Future<bool> uploadToR2(
+    String uploadUrl, 
+    Uint8List bytes, 
+    {bool isPng = false, bool isVideo = false}
+  ) async {
+    String contentType = 'image/jpeg';
+    if (isPng) contentType = 'image/png';
+    if (isVideo) contentType = 'video/mp4';
+
     final response = await http.put(
       Uri.parse(uploadUrl),
-      headers: {'Content-Type': isPng ? 'image/png' : 'image/jpeg'},
-      body: imageBytes,
+      headers: {'Content-Type': contentType},
+      body: bytes,
     );
     return response.statusCode == 200;
   }
@@ -41,11 +49,13 @@ class MediaService {
     String? signatureUrl,
     List<String>? photosBefore,
     List<String>? photosAfter,
+    String? videoUrl,
   }) async {
     final body = <String, dynamic>{};
     if (signatureUrl != null) body['signature_url'] = signatureUrl;
     if (photosBefore != null) body['photos_before'] = photosBefore;
     if (photosAfter != null) body['photos_after'] = photosAfter;
+    if (videoUrl != null) body['video_url'] = videoUrl;
 
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/app/installations/$installationId/save-media'),
