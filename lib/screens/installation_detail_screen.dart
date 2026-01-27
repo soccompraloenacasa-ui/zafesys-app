@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +8,9 @@ import '../models/installation.dart';
 import '../utils/helpers.dart';
 import '../widgets/status_badge.dart';
 import '../widgets/timer_widget.dart';
+import '../widgets/photo_capture_widget.dart';
+import '../widgets/signature_widget.dart';
+import '../services/media_service.dart';
 
 class InstallationDetailScreen extends StatefulWidget {
   final int installationId;
@@ -18,7 +23,11 @@ class InstallationDetailScreen extends StatefulWidget {
 
 class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   bool _isTimerLoading = false;
-  bool _isStatusLoading = false;
+  bool _isUploadingBefore = false;
+  bool _isUploadingAfter = false;
+  bool _isUploadingSignature = false;
+  List<File> _photosBefore = [];
+  List<File> _photosAfter = [];
 
   @override
   void initState() {
@@ -36,7 +45,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   }
 
   Future<void> _openWhatsApp(String phoneNumber) async {
-    // Clean phone number
     String cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
     if (!cleanPhone.startsWith('+')) {
       cleanPhone = '+57$cleanPhone';
@@ -172,39 +180,98 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     );
   }
 
-  Future<void> _updateStatus(String newStatus) async {
-    final provider = context.read<AppProvider>();
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _uploadPhotos(List<File> photos, String type, Installation installation) async {
+    if (photos.isEmpty) return;
 
-    setState(() => _isStatusLoading = true);
-    final success = await provider.updateInstallationStatus(widget.installationId, newStatus);
-    setState(() => _isStatusLoading = false);
+    setState(() {
+      if (type == 'foto_antes') _isUploadingBefore = true;
+      if (type == 'foto_despues') _isUploadingAfter = true;
+    });
 
-    if (success && mounted) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('Estado actualizado a ${_getStatusLabel(newStatus)}'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF047857),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+    try {
+      final urls = <String>[];
+      for (final photo in photos) {
+        final urlData = await MediaService.getUploadUrl(
+          installationId: installation.id,
+          fileType: type,
+          clientName: installation.clientName,
+        );
+        
+        final bytes = await photo.readAsBytes();
+        await MediaService.uploadToR2(urlData['upload_url']!, bytes);
+        urls.add(urlData['public_url']!);
+      }
+
+      await MediaService.saveMediaReference(
+        installationId: installation.id,
+        photosBefore: type == 'foto_antes' ? urls : null,
+        photosAfter: type == 'foto_despues' ? urls : null,
       );
+
+      if (mounted) {
+        await context.read<AppProvider>().loadInstallationDetail(installation.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${photos.length} foto(s) subida(s) correctamente'),
+            backgroundColor: const Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al subir fotos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+
+    setState(() {
+      if (type == 'foto_antes') _isUploadingBefore = false;
+      if (type == 'foto_despues') _isUploadingAfter = false;
+    });
   }
 
-  String _getStatusLabel(String status) {
-    switch (status) {
-      case 'en_camino': return 'En Camino';
-      case 'en_progreso': return 'En Progreso';
-      case 'completada': return 'Completada';
-      default: return status;
+  Future<void> _uploadSignature(Uint8List signatureBytes, Installation installation) async {
+    setState(() => _isUploadingSignature = true);
+
+    try {
+      final urlData = await MediaService.getUploadUrl(
+        installationId: installation.id,
+        fileType: 'firma',
+        clientName: installation.clientName,
+      );
+
+      await MediaService.uploadToR2(urlData['upload_url']!, signatureBytes, isPng: true);
+
+      await MediaService.saveMediaReference(
+        installationId: installation.id,
+        signatureUrl: urlData['public_url'],
+      );
+
+      if (mounted) {
+        await context.read<AppProvider>().loadInstallationDetail(installation.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Firma guardada correctamente'),
+            backgroundColor: Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al guardar firma: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+
+    setState(() => _isUploadingSignature = false);
   }
 
   Widget _buildMapOption(BuildContext context, {
@@ -281,6 +348,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
       );
     }
 
+    final isInProgress = installation.status == InstallationStatus.enProgreso;
+    final isCompleted = installation.status == InstallationStatus.completada;
+    final showMediaSection = isInProgress || isCompleted;
+
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -350,11 +421,11 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // PRODUCT CARD (New - at top)
+                  // Product Card
                   _buildProductCard(theme, installation),
                   const SizedBox(height: 16),
 
-                  // Client info with WhatsApp
+                  // Client Card
                   _buildClientCard(theme, installation),
                   const SizedBox(height: 16),
 
@@ -470,6 +541,91 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     },
                   ),
 
+                  // Photo & Signature Section
+                  if (showMediaSection) ...[
+                    const SizedBox(height: 24),
+
+                    // Photos Before
+                    PhotoCaptureWidget(
+                      title: 'Fotos Antes',
+                      existingPhotos: installation.photosBefore ?? [],
+                      onPhotosChanged: (photos) {
+                        _photosBefore = photos;
+                      },
+                    ),
+                    if (_photosBefore.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isUploadingBefore 
+                            ? null 
+                            : () => _uploadPhotos(_photosBefore, 'foto_antes', installation),
+                          icon: _isUploadingBefore 
+                            ? const SizedBox(
+                                width: 20, 
+                                height: 20, 
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                              )
+                            : const Icon(Icons.cloud_upload),
+                          label: Text(_isUploadingBefore ? 'Subiendo...' : 'Subir Fotos Antes'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Photos After
+                    PhotoCaptureWidget(
+                      title: 'Fotos Despues',
+                      existingPhotos: installation.photosAfter ?? [],
+                      onPhotosChanged: (photos) {
+                        _photosAfter = photos;
+                      },
+                    ),
+                    if (_photosAfter.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isUploadingAfter 
+                            ? null 
+                            : () => _uploadPhotos(_photosAfter, 'foto_despues', installation),
+                          icon: _isUploadingAfter 
+                            ? const SizedBox(
+                                width: 20, 
+                                height: 20, 
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                              )
+                            : const Icon(Icons.cloud_upload),
+                          label: Text(_isUploadingAfter ? 'Subiendo...' : 'Subir Fotos Despues'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Signature
+                    SignatureWidget(
+                      existingSignatureUrl: installation.signatureUrl,
+                      onSignatureSaved: (bytes) => _uploadSignature(bytes, installation),
+                    ),
+                    if (_isUploadingSignature) ...[
+                      const SizedBox(height: 12),
+                      const Center(child: CircularProgressIndicator()),
+                    ],
+                  ],
+
                   const SizedBox(height: 40),
                 ],
               ),
@@ -523,7 +679,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Image
               GestureDetector(
                 onTap: hasImage ? () => _showImageFullscreen(context, installation.productImageUrl!) : null,
                 child: Container(
@@ -545,18 +700,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                               size: 40,
                               color: theme.colorScheme.primary.withAlpha(150),
                             ),
-                            loadingBuilder: (context, child, loadingProgress) {
-                              if (loadingProgress == null) return child;
-                              return Center(
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                ),
-                              );
-                            },
                           ),
                         )
                       : Icon(
@@ -567,7 +710,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                 ),
               ),
               const SizedBox(width: 16),
-              // Product Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,22 +737,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-                    ],
-                    if (hasImage) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Icon(Icons.touch_app_rounded, size: 14, color: theme.colorScheme.primary.withAlpha(150)),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Toca la imagen para ampliar',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.primary.withAlpha(150),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ],
@@ -669,7 +795,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                // Call Button
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _makePhoneCall(installation.clientPhone!),
@@ -684,7 +809,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                // WhatsApp Button
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: () => _openWhatsApp(installation.clientPhone!),
@@ -711,104 +835,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               ),
             ),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatusActions(ThemeData theme, Installation installation) {
-    final nextStatus = installation.nextStatus;
-
-    if (nextStatus == null || installation.status == InstallationStatus.completada) {
-      return const SizedBox.shrink();
-    }
-
-    String buttonText;
-    IconData buttonIcon;
-    Color buttonColor;
-
-    switch (nextStatus) {
-      case InstallationStatus.enCamino:
-        buttonText = 'EN CAMINO';
-        buttonIcon = Icons.directions_car_rounded;
-        buttonColor = const Color(0xFFF97316); // Orange
-        break;
-      case InstallationStatus.enProgreso:
-        buttonText = 'INICIAR INSTALACION';
-        buttonIcon = Icons.play_circle_rounded;
-        buttonColor = theme.colorScheme.primary;
-        break;
-      case InstallationStatus.completada:
-        buttonText = 'COMPLETAR';
-        buttonIcon = Icons.check_circle_rounded;
-        buttonColor = const Color(0xFF047857); // Green
-        break;
-      default:
-        return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: buttonColor.withAlpha(10),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: buttonColor.withAlpha(40)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.swap_horiz_rounded, size: 18, color: buttonColor),
-              const SizedBox(width: 8),
-              Text(
-                'Cambiar Estado',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: buttonColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              onPressed: _isStatusLoading
-                  ? null
-                  : () {
-                      final statusValue = nextStatus == InstallationStatus.enCamino
-                          ? 'en_camino'
-                          : nextStatus == InstallationStatus.enProgreso
-                              ? 'en_progreso'
-                              : 'completada';
-                      _updateStatus(statusValue);
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: buttonColor,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: buttonColor.withAlpha(100),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 0,
-              ),
-              icon: _isStatusLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                    )
-                  : Icon(buttonIcon, size: 24),
-              label: Text(
-                _isStatusLoading ? 'Actualizando...' : buttonText,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
