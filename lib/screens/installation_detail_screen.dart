@@ -10,6 +10,7 @@ import '../widgets/status_badge.dart';
 import '../widgets/timer_widget.dart';
 import '../widgets/photo_capture_widget.dart';
 import '../widgets/signature_widget.dart';
+import '../widgets/video_capture_widget.dart';
 import '../services/media_service.dart';
 
 class InstallationDetailScreen extends StatefulWidget {
@@ -26,8 +27,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
   bool _isUploadingBefore = false;
   bool _isUploadingAfter = false;
   bool _isUploadingSignature = false;
+  bool _isUploadingVideo = false;
   List<File> _photosBefore = [];
   List<File> _photosAfter = [];
+  File? _selectedVideo;
 
   @override
   void initState() {
@@ -210,6 +213,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
       if (mounted) {
         await context.read<AppProvider>().loadInstallationDetail(installation.id);
+        setState(() {
+          if (type == 'foto_antes') _photosBefore = [];
+          if (type == 'foto_despues') _photosAfter = [];
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${photos.length} foto(s) subida(s) correctamente'),
@@ -272,6 +279,48 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     }
 
     setState(() => _isUploadingSignature = false);
+  }
+
+  Future<void> _uploadVideo(File video, Installation installation) async {
+    setState(() => _isUploadingVideo = true);
+
+    try {
+      final urlData = await MediaService.getUploadUrl(
+        installationId: installation.id,
+        fileType: 'video',
+        clientName: installation.clientName,
+      );
+
+      final bytes = await video.readAsBytes();
+      await MediaService.uploadToR2(urlData['upload_url']!, bytes, isVideo: true);
+
+      await MediaService.saveMediaReference(
+        installationId: installation.id,
+        videoUrl: urlData['public_url'],
+      );
+
+      if (mounted) {
+        await context.read<AppProvider>().loadInstallationDetail(installation.id);
+        setState(() => _selectedVideo = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Video subido correctamente'),
+            backgroundColor: Color(0xFF047857),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al subir video: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+
+    setState(() => _isUploadingVideo = false);
   }
 
   Widget _buildMapOption(BuildContext context, {
@@ -421,15 +470,10 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Product Card
                   _buildProductCard(theme, installation),
                   const SizedBox(height: 16),
-
-                  // Client Card
                   _buildClientCard(theme, installation),
                   const SizedBox(height: 16),
-
-                  // Address
                   _buildSection(
                     theme: theme,
                     icon: Icons.location_on_outlined,
@@ -491,8 +535,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Schedule
                   _buildMiniSection(
                     theme: theme,
                     icon: Icons.schedule_rounded,
@@ -541,7 +583,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                     },
                   ),
 
-                  // Photo & Signature Section
+                  // Photo, Video & Signature Section
                   if (showMediaSection) ...[
                     const SizedBox(height: 24),
 
@@ -551,6 +593,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       existingPhotos: installation.photosBefore ?? [],
                       onPhotosChanged: (photos) {
                         _photosBefore = photos;
+                        setState(() {});
                       },
                     ),
                     if (_photosBefore.isNotEmpty) ...[
@@ -586,6 +629,7 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                       existingPhotos: installation.photosAfter ?? [],
                       onPhotosChanged: (photos) {
                         _photosAfter = photos;
+                        setState(() {});
                       },
                     ),
                     if (_photosAfter.isNotEmpty) ...[
@@ -606,6 +650,40 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
                           label: Text(_isUploadingAfter ? 'Subiendo...' : 'Subir Fotos Despues'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+
+                    // Video
+                    VideoCaptureWidget(
+                      existingVideoUrl: installation.videoUrl,
+                      onVideoSelected: (video) {
+                        setState(() => _selectedVideo = video);
+                      },
+                    ),
+                    if (_selectedVideo != null) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isUploadingVideo 
+                            ? null 
+                            : () => _uploadVideo(_selectedVideo!, installation),
+                          icon: _isUploadingVideo 
+                            ? const SizedBox(
+                                width: 20, 
+                                height: 20, 
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
+                              )
+                            : const Icon(Icons.cloud_upload),
+                          label: Text(_isUploadingVideo ? 'Subiendo video...' : 'Subir Video'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepOrange,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
