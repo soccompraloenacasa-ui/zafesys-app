@@ -142,9 +142,14 @@ class AppProvider extends ChangeNotifier {
   Future<bool> startTimer(int installationId) async {
     _clearError();
     try {
-      final updated = await _apiService.startTimer(installationId);
-      _selectedInstallation = updated;
-      _updateInstallationInList(updated);
+      // Call API to start timer
+      await _apiService.startTimer(installationId);
+      // Reload full installation to get updated data
+      await loadInstallationDetail(installationId);
+      // Update in list
+      if (_selectedInstallation != null) {
+        _updateInstallationInList(_selectedInstallation!);
+      }
       notifyListeners();
       return true;
     } catch (e) {
@@ -156,9 +161,14 @@ class AppProvider extends ChangeNotifier {
   Future<bool> stopTimer(int installationId) async {
     _clearError();
     try {
-      final updated = await _apiService.stopTimer(installationId);
-      _selectedInstallation = updated;
-      _updateInstallationInList(updated);
+      // Call API to stop timer
+      await _apiService.stopTimer(installationId);
+      // Reload full installation to get updated data
+      await loadInstallationDetail(installationId);
+      // Update in list
+      if (_selectedInstallation != null) {
+        _updateInstallationInList(_selectedInstallation!);
+      }
       notifyListeners();
       return true;
     } catch (e) {

@@ -100,25 +100,17 @@ class ApiService {
   }
 
   // Timer
-  Future<Installation> startTimer(int installationId) async {
+  Future<void> startTimer(int installationId) async {
     try {
-      final response = await _dio.post('${ApiConfig.installations}/app/$installationId/timer/start');
-      final data = response.data is Map && response.data.containsKey('data')
-          ? response.data['data']
-          : response.data;
-      return Installation.fromJson(data);
+      await _dio.post('${ApiConfig.installations}/app/$installationId/timer/start');
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  Future<Installation> stopTimer(int installationId) async {
+  Future<void> stopTimer(int installationId) async {
     try {
-      final response = await _dio.post('${ApiConfig.installations}/app/$installationId/timer/stop');
-      final data = response.data is Map && response.data.containsKey('data')
-          ? response.data['data']
-          : response.data;
-      return Installation.fromJson(data);
+      await _dio.post('${ApiConfig.installations}/app/$installationId/timer/stop');
     } on DioException catch (e) {
       throw _handleError(e);
     }
