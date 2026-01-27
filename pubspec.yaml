@@ -25,6 +25,9 @@ dependencies:
   geolocator: ^13.0.2
   permission_handler: ^11.3.0
 
+  # Device Info
+  battery_plus: ^6.0.0
+
   # URL Launcher (phone, maps)
   url_launcher: ^6.2.4
 

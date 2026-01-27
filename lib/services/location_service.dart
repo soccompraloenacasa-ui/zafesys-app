@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:battery_plus/battery_plus.dart';
 import '../config/api_config.dart';
 import '../models/location.dart';
 import 'api_service.dart';
 
 class LocationService {
   final ApiService _apiService;
+  final Battery _battery = Battery();
   Timer? _locationTimer;
   int? _technicianId;
+  int? _currentInstallationId;
 
   LocationService(this._apiService);
 
@@ -39,7 +42,7 @@ class LocationService {
     // Send initial location
     _sendCurrentLocation();
 
-    // Schedule periodic updates
+    // Schedule periodic updates every 5 minutes
     _locationTimer = Timer.periodic(
       Duration(minutes: ApiConfig.locationUpdateIntervalMinutes),
       (_) => _sendCurrentLocation(),
@@ -50,6 +53,17 @@ class LocationService {
     _locationTimer?.cancel();
     _locationTimer = null;
     _technicianId = null;
+    _currentInstallationId = null;
+  }
+
+  /// Set current installation being worked on (for tracking purposes)
+  void setCurrentInstallation(int? installationId) {
+    _currentInstallationId = installationId;
+  }
+
+  /// Force send location now (useful when starting an installation)
+  Future<void> sendLocationNow() async {
+    await _sendCurrentLocation();
   }
 
   Future<void> _sendCurrentLocation() async {
@@ -70,15 +84,30 @@ class LocationService {
         ),
       );
 
+      // Get battery level
+      int? batteryLevel;
+      try {
+        batteryLevel = await _battery.batteryLevel;
+      } catch (_) {
+        // Battery info not available
+      }
+
       final location = TechnicianLocation(
         latitude: position.latitude,
         longitude: position.longitude,
+        accuracy: position.accuracy,
+        speed: position.speed > 0 ? position.speed : null,
+        heading: position.heading > 0 ? position.heading : null,
+        altitude: position.altitude != 0 ? position.altitude : null,
+        batteryLevel: batteryLevel,
+        installationId: _currentInstallationId,
         timestamp: DateTime.now(),
       );
 
       await _apiService.sendLocation(_technicianId!, location);
-    } catch (_) {
+    } catch (e) {
       // Silently fail - we don't want to interrupt the user
+      print('Error obteniendo/enviando ubicación: $e');
     }
   }
 

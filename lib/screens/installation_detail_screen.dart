@@ -193,14 +193,21 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
     try {
       final urls = <String>[];
-      for (final photo in photos) {
+      for (int i = 0; i < photos.length; i++) {
+        final photo = photos[i];
+        final bytes = await photo.readAsBytes();
+
+        // Validar tamaño antes de subir
+        if (!MediaService.validateFileSize(bytes)) {
+          throw Exception('Foto ${i + 1} es muy grande (${MediaService.getFileSizeString(bytes)}). Máximo 10 MB.');
+        }
+
         final urlData = await MediaService.getUploadUrl(
           installationId: installation.id,
           fileType: type,
           clientName: installation.clientName,
         );
-        
-        final bytes = await photo.readAsBytes();
+
         await MediaService.uploadToR2(urlData['upload_url']!, bytes);
         urls.add(urlData['public_url']!);
       }
@@ -285,13 +292,19 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     setState(() => _isUploadingVideo = true);
 
     try {
+      final bytes = await video.readAsBytes();
+
+      // Validar tamaño antes de subir (máx 200 MB para video)
+      if (!MediaService.validateFileSize(bytes, isVideo: true)) {
+        throw Exception('Video muy grande (${MediaService.getFileSizeString(bytes)}). Máximo 200 MB.');
+      }
+
       final urlData = await MediaService.getUploadUrl(
         installationId: installation.id,
         fileType: 'video',
         clientName: installation.clientName,
       );
 
-      final bytes = await video.readAsBytes();
       await MediaService.uploadToR2(urlData['upload_url']!, bytes, isVideo: true);
 
       await MediaService.saveMediaReference(

@@ -119,12 +119,15 @@ class ApiService {
   // Location Tracking
   Future<void> sendLocation(int technicianId, TechnicianLocation location) async {
     try {
+      // RUTA CORREGIDA: /tech/location con technician_id como query param
       await _dio.post(
-        '${ApiConfig.technicians}/$technicianId/location',
+        '/tech/location',
+        queryParameters: {'technician_id': technicianId},
         data: location.toJson(),
       );
     } on DioException catch (e) {
-      throw _handleError(e);
+      // Silently fail for location - don't interrupt user
+      print('Error enviando ubicación: ${e.message}');
     }
   }
 
