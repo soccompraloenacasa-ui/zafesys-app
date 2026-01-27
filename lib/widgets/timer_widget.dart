@@ -198,11 +198,11 @@ class _TimerWidgetState extends State<TimerWidget> with SingleTickerProviderStat
                       )
                     : const Icon(Icons.stop_rounded, size: 28),
                 label: Text(
-                  widget.isLoading ? 'Finalizando...' : 'FINALIZAR TIMER',
+                  widget.isLoading ? 'Finalizando...' : '✓ FINALIZAR INSTALACIÓN',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),
@@ -260,11 +260,11 @@ class _TimerWidgetState extends State<TimerWidget> with SingleTickerProviderStat
                       )
                     : const Icon(Icons.play_arrow_rounded, size: 28),
                 label: Text(
-                  widget.isLoading ? 'Iniciando...' : 'INICIAR INSTALACION',
+                  widget.isLoading ? 'Iniciando...' : '▶ INICIAR INSTALACIÓN',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ),

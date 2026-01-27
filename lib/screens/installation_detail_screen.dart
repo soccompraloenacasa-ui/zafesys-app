@@ -454,11 +454,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
 
                   const SizedBox(height: 24),
 
-                  // STATUS CHANGE BUTTONS (New)
-                  _buildStatusActions(theme, installation),
-
-                  const SizedBox(height: 24),
-
                   // Timer
                   TimerWidget(
                     installation: installation,
