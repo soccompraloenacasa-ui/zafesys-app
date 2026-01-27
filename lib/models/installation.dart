@@ -28,6 +28,9 @@ class Installation {
   final double? totalPrice;
   final double? amountPaid;
   final String? paymentStatus;
+  final String? signatureUrl;
+  final List<String>? photosBefore;
+  final List<String>? photosAfter;
 
   Installation({
     required this.id,
@@ -50,6 +53,9 @@ class Installation {
     this.totalPrice,
     this.amountPaid,
     this.paymentStatus,
+    this.signatureUrl,
+    this.photosBefore,
+    this.photosAfter,
   });
 
   factory Installation.fromJson(Map<String, dynamic> json) {
@@ -68,6 +74,17 @@ class Installation {
     // Handle notes (API uses customer_notes)
     final notes = json['customer_notes'] ?? json['notes'];
     final addressNotes = json['address_notes'];
+
+    // Handle photos arrays
+    List<String>? photosBefore;
+    if (json['photos_before'] != null) {
+      photosBefore = List<String>.from(json['photos_before']);
+    }
+    
+    List<String>? photosAfter;
+    if (json['photos_after'] != null) {
+      photosAfter = List<String>.from(json['photos_after']);
+    }
 
     return Installation(
       id: json['id'] ?? 0,
@@ -94,6 +111,9 @@ class Installation {
       totalPrice: json['total_price'] != null ? double.tryParse(json['total_price'].toString()) : null,
       amountPaid: json['amount_paid'] != null ? double.tryParse(json['amount_paid'].toString()) : null,
       paymentStatus: json['payment_status'],
+      signatureUrl: json['signature_url'],
+      photosBefore: photosBefore,
+      photosAfter: photosAfter,
     );
   }
 
@@ -194,6 +214,9 @@ class Installation {
     double? totalPrice,
     double? amountPaid,
     String? paymentStatus,
+    String? signatureUrl,
+    List<String>? photosBefore,
+    List<String>? photosAfter,
   }) {
     return Installation(
       id: id ?? this.id,
@@ -216,6 +239,9 @@ class Installation {
       totalPrice: totalPrice ?? this.totalPrice,
       amountPaid: amountPaid ?? this.amountPaid,
       paymentStatus: paymentStatus ?? this.paymentStatus,
+      signatureUrl: signatureUrl ?? this.signatureUrl,
+      photosBefore: photosBefore ?? this.photosBefore,
+      photosAfter: photosAfter ?? this.photosAfter,
     );
   }
 }
