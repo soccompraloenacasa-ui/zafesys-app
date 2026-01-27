@@ -31,6 +31,7 @@ class Installation {
   final String? signatureUrl;
   final List<String>? photosBefore;
   final List<String>? photosAfter;
+  final String? videoUrl;
 
   Installation({
     required this.id,
@@ -56,6 +57,7 @@ class Installation {
     this.signatureUrl,
     this.photosBefore,
     this.photosAfter,
+    this.videoUrl,
   });
 
   factory Installation.fromJson(Map<String, dynamic> json) {
@@ -114,6 +116,7 @@ class Installation {
       signatureUrl: json['signature_url'],
       photosBefore: photosBefore,
       photosAfter: photosAfter,
+      videoUrl: json['video_url'],
     );
   }
 
@@ -178,7 +181,6 @@ class Installation {
     }
   }
 
-  // Get next status in the flow
   InstallationStatus? get nextStatus {
     switch (status) {
       case InstallationStatus.pendiente:
@@ -217,6 +219,7 @@ class Installation {
     String? signatureUrl,
     List<String>? photosBefore,
     List<String>? photosAfter,
+    String? videoUrl,
   }) {
     return Installation(
       id: id ?? this.id,
@@ -242,6 +245,7 @@ class Installation {
       signatureUrl: signatureUrl ?? this.signatureUrl,
       photosBefore: photosBefore ?? this.photosBefore,
       photosAfter: photosAfter ?? this.photosAfter,
+      videoUrl: videoUrl ?? this.videoUrl,
     );
   }
 }
