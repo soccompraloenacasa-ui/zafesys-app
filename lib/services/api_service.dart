@@ -3,9 +3,11 @@ import '../config/api_config.dart';
 import '../models/technician.dart';
 import '../models/installation.dart';
 import '../models/location.dart';
+import 'auth_service.dart';
 
 class ApiService {
   late final Dio _dio;
+  final AuthService _authService = AuthService();
 
   ApiService() {
     _dio = Dio(BaseOptions(
@@ -18,6 +20,24 @@ class ApiService {
       },
     ));
 
+    // Interceptor para agregar token a las peticiones
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _authService.getToken();
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        return handler.next(options);
+      },
+      onError: (error, handler) async {
+        // Si el token expiró, logout automático
+        if (error.response?.statusCode == 401) {
+          await _authService.logout();
+        }
+        return handler.next(error);
+      },
+    ));
+
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
@@ -25,7 +45,48 @@ class ApiService {
     ));
   }
 
-  // Technicians
+  // ===== AUTH =====
+  
+  /// Login de técnico con cédula y PIN
+  /// Retorna los datos de autenticación si es exitoso
+  Future<Map<String, dynamic>> loginTechnician({
+    required String documentId,
+    required String pin,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/auth/technician/login',
+        data: {
+          'document_id': documentId,
+          'pin': pin,
+        },
+      );
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Validar si el token actual es válido
+  Future<Map<String, dynamic>?> validateToken() async {
+    try {
+      final token = await _authService.getToken();
+      if (token == null) return null;
+      
+      final response = await _dio.post(
+        '/auth/technician/validate-token',
+        options: Options(
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+      return response.data;
+    } on DioException {
+      return null;
+    }
+  }
+
+  // ===== TECHNICIANS =====
+  
   Future<List<Technician>> getTechnicians() async {
     try {
       final response = await _dio.get(ApiConfig.techniciansList);
@@ -38,7 +99,8 @@ class ApiService {
     }
   }
 
-  // Installations
+  // ===== INSTALLATIONS =====
+  
   Future<List<Installation>> getTechnicianInstallations(int technicianId, {DateTime? date}) async {
     try {
       final queryParams = <String, dynamic>{};
@@ -87,7 +149,8 @@ class ApiService {
     }
   }
 
-  // Status Update
+  // ===== STATUS =====
+  
   Future<void> updateInstallationStatus(int installationId, String status) async {
     try {
       await _dio.patch(
@@ -99,7 +162,8 @@ class ApiService {
     }
   }
 
-  // Timer
+  // ===== TIMER =====
+  
   Future<void> startTimer(int installationId) async {
     try {
       await _dio.post('${ApiConfig.installations}/app/$installationId/timer/start');
@@ -116,10 +180,10 @@ class ApiService {
     }
   }
 
-  // Location Tracking
+  // ===== LOCATION TRACKING =====
+  
   Future<void> sendLocation(int technicianId, TechnicianLocation location) async {
     try {
-      // RUTA CORREGIDA: /tech/location con technician_id como query param
       await _dio.post(
         '/tech/location',
         queryParameters: {'technician_id': technicianId},
@@ -131,7 +195,8 @@ class ApiService {
     }
   }
 
-  // Error handling
+  // ===== ERROR HANDLING =====
+  
   String _handleError(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
@@ -140,11 +205,20 @@ class ApiService {
         return 'Error de conexión. Verifica tu internet.';
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode ?? 0;
-        final message = e.response?.data?['message'] ?? e.response?.data?['error'];
+        final data = e.response?.data;
+        String? message;
+        
+        // Intentar extraer mensaje de diferentes formatos
+        if (data is Map) {
+          message = data['detail'] ?? data['message'] ?? data['error'];
+        }
+        
         if (statusCode == 401) {
-          return 'No autorizado. Inicia sesión nuevamente.';
+          return message ?? 'Credenciales incorrectas';
+        } else if (statusCode == 403) {
+          return message ?? 'Acceso denegado';
         } else if (statusCode == 404) {
-          return 'Recurso no encontrado.';
+          return message ?? 'No encontrado';
         } else if (statusCode >= 500) {
           return 'Error del servidor. Intenta más tarde.';
         }
