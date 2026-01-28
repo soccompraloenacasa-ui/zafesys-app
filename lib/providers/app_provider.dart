@@ -49,11 +49,26 @@ class AppProvider extends ChangeNotifier {
 
   // Initialize
   Future<void> _init() async {
-    _currentTechnician = await _authService.getCurrentTechnician();
-    if (_currentTechnician != null) {
-      await _startLocationTracking();
-      await loadInstallations();
+    // Verificar si hay sesión guardada
+    final hasValidSession = await _authService.isLoggedIn();
+    
+    if (hasValidSession) {
+      // Validar que el token siga siendo válido con el servidor
+      final validation = await _apiService.validateToken();
+      
+      if (validation != null && validation['valid'] == true) {
+        // Token válido, cargar datos del técnico
+        _currentTechnician = await _authService.getCurrentTechnician();
+        if (_currentTechnician != null) {
+          await _startLocationTracking();
+          await loadInstallations();
+        }
+      } else {
+        // Token inválido, limpiar sesión
+        await _authService.logout();
+      }
     }
+    
     notifyListeners();
   }
 
@@ -63,7 +78,46 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Auth
+  // Auth - Nuevo método con PIN
+  Future<bool> loginWithPin(String documentId, String pin) async {
+    _setLoading(true);
+    _clearError();
+    
+    try {
+      // Llamar al API de login
+      final response = await _apiService.loginTechnician(
+        documentId: documentId,
+        pin: pin,
+      );
+      
+      // Guardar token y datos del técnico
+      await _authService.saveAuthData(
+        token: response['access_token'],
+        technicianId: response['technician_id'],
+        technicianName: response['technician_name'],
+      );
+      
+      // Crear objeto Technician con los datos recibidos
+      _currentTechnician = Technician(
+        id: response['technician_id'],
+        name: response['technician_name'],
+        phone: '', // Se cargará después si es necesario
+      );
+      
+      // Iniciar tracking y cargar instalaciones
+      await _startLocationTracking();
+      await loadInstallations();
+      
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Auth - Legacy (mantener por compatibilidad)
   Future<void> loadTechnicians() async {
     _setLoading(true);
     _clearError();
