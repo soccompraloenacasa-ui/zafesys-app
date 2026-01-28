@@ -20,6 +20,53 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _selectDate(BuildContext context) async {
+    final provider = context.read<AppProvider>();
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: provider.selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2030),
+      locale: const Locale('es', 'ES'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != provider.selectedDate) {
+      provider.setSelectedDate(picked);
+    }
+  }
+
+  String _getDateLabel(AppProvider provider) {
+    final now = DateTime.now();
+    final selected = provider.selectedDate;
+    final yesterday = now.subtract(const Duration(days: 1));
+    final tomorrow = now.add(const Duration(days: 1));
+
+    if (selected.year == now.year && 
+        selected.month == now.month && 
+        selected.day == now.day) {
+      return 'Instalaciones de hoy';
+    } else if (selected.year == yesterday.year && 
+               selected.month == yesterday.month && 
+               selected.day == yesterday.day) {
+      return 'Instalaciones de ayer';
+    } else if (selected.year == tomorrow.year && 
+               selected.month == tomorrow.month && 
+               selected.day == tomorrow.day) {
+      return 'Instalaciones de manana';
+    } else {
+      return 'Instalaciones';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -148,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            // Date Header
+            // Date Header with Navigation
             SliverToBoxAdapter(
               child: Container(
                 margin: const EdgeInsets.all(16),
@@ -164,60 +211,155 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary.withAlpha(25),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(
-                        Icons.calendar_today_rounded,
-                        color: theme.colorScheme.primary,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    // Fila principal con calendario
+                    InkWell(
+                      onTap: () => _selectDate(context),
+                      borderRadius: BorderRadius.circular(14),
+                      child: Row(
                         children: [
-                          Text(
-                            'Instalaciones de hoy',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(
+                              Icons.calendar_today_rounded,
+                              color: theme.colorScheme.primary,
+                              size: 24,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            Helpers.formatDate(DateTime.now()),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withAlpha(150),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      _getDateLabel(provider),
+                                      style: theme.textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      Icons.arrow_drop_down,
+                                      color: theme.colorScheme.primary,
+                                      size: 24,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  Helpers.formatDate(provider.selectedDate),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.onSurface.withAlpha(150),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  theme.colorScheme.primary,
+                                  theme.colorScheme.primary.withAlpha(200),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Text(
+                              '${installations.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            theme.colorScheme.primary,
-                            theme.colorScheme.primary.withAlpha(200),
-                          ],
+                    const SizedBox(height: 14),
+                    // Fila de navegación entre días
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Botón día anterior
+                        TextButton.icon(
+                          onPressed: () => provider.previousDay(),
+                          icon: Icon(
+                            Icons.chevron_left,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                          label: Text(
+                            'Anterior',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Text(
-                        '${installations.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                        // Botón Hoy (solo si no es hoy)
+                        if (!provider.isToday)
+                          TextButton(
+                            onPressed: () => provider.goToToday(),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withAlpha(20),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                'Hoy',
+                                style: TextStyle(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 50),
+                        // Botón día siguiente
+                        TextButton.icon(
+                          onPressed: () => provider.nextDay(),
+                          icon: Text(
+                            'Siguiente',
+                            style: TextStyle(
+                              color: theme.colorScheme.primary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          label: Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: theme.colorScheme.primary,
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
@@ -230,7 +372,7 @@ class _HomeScreenState extends State<HomeScreen> {
               )
             else if (installations.isEmpty)
               SliverFillRemaining(
-                child: _buildEmptyState(theme),
+                child: _buildEmptyState(theme, provider),
               )
             else
               SliverPadding(
@@ -260,7 +402,24 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme) {
+  Widget _buildEmptyState(ThemeData theme, AppProvider provider) {
+    final isToday = provider.isToday;
+    final isPast = provider.selectedDate.isBefore(DateTime.now());
+    
+    String title;
+    String subtitle;
+    
+    if (isToday) {
+      title = 'Sin instalaciones';
+      subtitle = 'No tienes instalaciones programadas para hoy.\nDesliza hacia abajo para actualizar.';
+    } else if (isPast) {
+      title = 'Sin registros';
+      subtitle = 'No hay instalaciones registradas para esta fecha.';
+    } else {
+      title = 'Sin programacion';
+      subtitle = 'No tienes instalaciones programadas para este dia.';
+    }
+    
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -274,27 +433,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                Icons.event_available_rounded,
+                isPast ? Icons.history_rounded : Icons.event_available_rounded,
                 size: 64,
                 color: theme.colorScheme.primary.withAlpha(150),
               ),
             ),
             const SizedBox(height: 28),
             Text(
-              'Sin instalaciones',
+              title,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'No tienes instalaciones programadas para hoy.\nDesliza hacia abajo para actualizar.',
+              subtitle,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withAlpha(150),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
             ),
+            if (!isToday) ...[
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: () => provider.goToToday(),
+                icon: const Icon(Icons.today, size: 18),
+                label: const Text('Ir a hoy'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+            ],
           ],
         ),
       ),
