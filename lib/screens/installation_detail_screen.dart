@@ -40,26 +40,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
     });
   }
 
-  Future<void> _makePhoneCall(String phoneNumber) async {
-    final uri = Uri(scheme: 'tel', path: phoneNumber);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
-  Future<void> _openWhatsApp(String phoneNumber) async {
-    String cleanPhone = phoneNumber.replaceAll(RegExp(r'[^\d+]'), '');
-    if (!cleanPhone.startsWith('+')) {
-      cleanPhone = '+57$cleanPhone';
-    }
-    cleanPhone = cleanPhone.replaceAll('+', '');
-
-    final uri = Uri.parse('https://wa.me/$cleanPhone');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-
   Future<void> _openMaps(String address, String city) async {
     final query = Uri.encodeComponent('$address, $city, Colombia');
     final googleMapsUrl = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
@@ -882,50 +862,6 @@ class _InstallationDetailScreenState extends State<InstallationDetailScreen> {
             installation.clientName,
             style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
-          if (installation.clientPhone != null) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _makePhoneCall(installation.clientPhone!),
-                    icon: const Icon(Icons.phone_rounded, size: 20),
-                    label: const Text('Llamar'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF047857),
-                      side: const BorderSide(color: Color(0xFF047857)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _openWhatsApp(installation.clientPhone!),
-                    icon: const Icon(Icons.chat_rounded, size: 20),
-                    label: const Text('WhatsApp'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF25D366),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Center(
-              child: Text(
-                installation.clientPhone!,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withAlpha(150),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
