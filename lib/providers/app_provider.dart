@@ -17,6 +17,7 @@ class AppProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   ThemeMode _themeMode = ThemeMode.light;
+  DateTime _selectedDate = DateTime.now();
 
   AppProvider() {
     _locationService = LocationService(_apiService);
@@ -32,19 +33,55 @@ class AppProvider extends ChangeNotifier {
   String? get error => _error;
   ThemeMode get themeMode => _themeMode;
   bool get isLoggedIn => _currentTechnician != null;
+  DateTime get selectedDate => _selectedDate;
 
   List<Installation> get todayInstallations {
-    final now = DateTime.now();
     return _installations.where((i) {
-      return i.scheduledDate.year == now.year &&
-          i.scheduledDate.month == now.month &&
-          i.scheduledDate.day == now.day;
+      return i.scheduledDate.year == _selectedDate.year &&
+          i.scheduledDate.month == _selectedDate.month &&
+          i.scheduledDate.day == _selectedDate.day;
     }).toList()
       ..sort((a, b) {
         final timeA = a.scheduledTime ?? '23:59';
         final timeB = b.scheduledTime ?? '23:59';
         return timeA.compareTo(timeB);
       });
+  }
+
+  // Verificar si la fecha seleccionada es hoy
+  bool get isToday {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  // Cambiar fecha seleccionada
+  void setSelectedDate(DateTime date) {
+    _selectedDate = date;
+    loadInstallations();
+    notifyListeners();
+  }
+
+  // Ir al día anterior
+  void previousDay() {
+    _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+    loadInstallations();
+    notifyListeners();
+  }
+
+  // Ir al día siguiente
+  void nextDay() {
+    _selectedDate = _selectedDate.add(const Duration(days: 1));
+    loadInstallations();
+    notifyListeners();
+  }
+
+  // Ir a hoy
+  void goToToday() {
+    _selectedDate = DateTime.now();
+    loadInstallations();
+    notifyListeners();
   }
 
   // Initialize
@@ -152,6 +189,7 @@ class AppProvider extends ChangeNotifier {
     _currentTechnician = null;
     _installations = [];
     _selectedInstallation = null;
+    _selectedDate = DateTime.now();
     notifyListeners();
   }
 
@@ -174,7 +212,7 @@ class AppProvider extends ChangeNotifier {
     try {
       _installations = await _apiService.getTechnicianInstallations(
         _currentTechnician!.id,
-        date: DateTime.now(),
+        date: _selectedDate,
       );
     } catch (e) {
       _setError(e.toString());
